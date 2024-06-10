@@ -73,6 +73,7 @@ func wrapCommand(handler func(*WrappedCommandEvent)) func(*commands.Event) {
 var (
 	HelpSectionConnectionManagement = commands.HelpSection{Name: "Connection management", Order: 11}
 	HelpSectionPortalManagement     = commands.HelpSection{Name: "Portal management", Order: 20}
+	HelpSectionMiscellaneous        = commands.HelpSection{Name: "Miscellaneous", Order: 21}
 )
 
 var cmdLoginQR = &commands.FullHandler{
@@ -447,6 +448,50 @@ func fnPM(ce *WrappedCommandEvent) {
 		ce.Reply("Failed to create portal room for conversation")
 	} else {
 		ce.Reply("Chat created: [%s](https://matrix.to/#/%s)", portal.MXID, portal.MXID)
+	}
+}
+
+var cmdSync = &commands.FullHandler{
+	Func: wrapCommand(fnSync),
+	Name: "sync",
+	Help: commands.HelpMeta{
+		Section:     HelpSectionMiscellaneous,
+		Description: "Synchronize space data from Google Messages.",
+		Args:        "<space>",
+	},
+	RequiresLogin: true,
+}
+
+func fnSync(ce *WrappedCommandEvent) {
+	args := strings.ToLower(strings.Join(ce.Args, " "))
+	space := strings.Contains(args, "space")
+	if !space {
+		ce.Reply("**Usage:** `sync space`")
+		return
+	}
+
+	if space {
+		if !ce.Bridge.Config.Bridge.PersonalFilteringSpaces {
+			ce.Reply("Personal filtering spaces are not enabled on this instance of the bridge")
+			return
+		}
+		dbPortals, err := ce.Bridge.DB.Portal.FindPrivateChatsNotInSpace(ce.Ctx, ce.User.RowID)
+		if err != nil {
+			ce.ZLog.Err(err).Msg("Failed to get list of private chats not in space")
+			ce.Reply("Failed to get list of private chats not in space")
+			return
+		}
+		count := 0
+		for _, dbPortal := range dbPortals {
+			portal := ce.Bridge.GetPortalByKey(dbPortal.Key)
+			portal.addToPersonalSpace(ce.Ctx, ce.User, false)
+			count++
+		}
+		plural := "s"
+		if count == 1 {
+			plural = ""
+		}
+		ce.Reply("Added %d DM room%s to space", count, plural)
 	}
 }
 

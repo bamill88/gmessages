@@ -52,6 +52,10 @@ const (
 		WHERE id=$1 AND receiver=$2
 	`
 	deletePortalQuery = "DELETE FROM portal WHERE id=$1 AND receiver=$2"
+	findPrivateChatPortalsNotInSpaceQuery = `
+		SELECT id FROM portal
+		WHERE mxid<>'' AND receiver=$1 AND (in_space=false OR user_portal.in_space IS NULL)
+	`
 )
 
 func (pq *PortalQuery) GetAll(ctx context.Context) ([]*Portal, error) {
@@ -72,6 +76,10 @@ func (pq *PortalQuery) GetByOtherUser(ctx context.Context, key Key) (*Portal, er
 
 func (pq *PortalQuery) GetByMXID(ctx context.Context, mxid id.RoomID) (*Portal, error) {
 	return pq.QueryOne(ctx, getPortalByMXIDQuery, mxid)
+}
+
+func (pq *PortalQuery) FindPrivateChatsNotInSpace(ctx context.Context, receiver int) ([]*Portal, error) {
+	return pq.QueryMany(ctx, findPrivateChatPortalsNotInSpaceQuery, receiver)
 }
 
 type Key struct {
